@@ -1,0 +1,186 @@
+
+
+-- Criação das tabelas
+CREATE TABLE Usuario (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nome VARCHAR(100) NOT NULL,
+    user VARCHAR(50) UNIQUE NOT NULL,
+    role VARCHAR(50) NOT NULL,
+    senha VARCHAR(100) NOT NULL,
+    cpf VARCHAR(14) UNIQUE NOT NULL,
+    data_nascimento DATE NOT NULL
+);
+
+CREATE TABLE ProfissionalSaude (
+    usuario_id INT PRIMARY KEY,
+    especialidade VARCHAR(100),
+    tipo VARCHAR(50),
+    FOREIGN KEY (usuario_id) REFERENCES Usuario(id)
+);
+
+CREATE TABLE Paciente (
+    usuario_id INT PRIMARY KEY,
+    historico_clinico TEXT,
+    FOREIGN KEY (usuario_id) REFERENCES Usuario(id)
+);
+
+CREATE TABLE Admin (
+    usuario_id INT PRIMARY KEY,
+    admin_id INT NOT NULL UNIQUE,
+    FOREIGN KEY (usuario_id) REFERENCES Usuario(id)
+);
+
+CREATE TABLE Consulta (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    paciente_id INT,
+    profissional_id INT,
+    data_consulta DATETIME,
+    status VARCHAR(50) DEFAULT 'Agendada',
+    FOREIGN KEY (paciente_id) REFERENCES Paciente(usuario_id),
+    FOREIGN KEY (profissional_id) REFERENCES ProfissionalSaude(usuario_id)
+);
+
+CREATE TABLE Receita (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    paciente_id INT,
+    profissional_id INT,
+    data_emissao DATETIME DEFAULT CURRENT_TIMESTAMP,
+    conteudo TEXT,
+    FOREIGN KEY (paciente_id) REFERENCES Paciente(usuario_id),
+    FOREIGN KEY (profissional_id) REFERENCES ProfissionalSaude(usuario_id)
+);
+
+CREATE TABLE Teleconsulta (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    paciente_id INT,
+    profissional_id INT,
+    data_hora DATETIME,
+    link_acesso VARCHAR(255),
+    FOREIGN KEY (paciente_id) REFERENCES Paciente(usuario_id),
+    FOREIGN KEY (profissional_id) REFERENCES ProfissionalSaude(usuario_id)
+);
+
+-- Criação de Stored Procedures
+DELIMITER $$
+
+CREATE PROCEDURE loginUsuario (
+    IN p_user VARCHAR(50),
+    IN p_senha VARCHAR(100)
+)
+BEGIN
+    SELECT id, nome, role
+    FROM Usuario
+    WHERE user = p_user AND senha = p_senha;
+END$$
+
+CREATE PROCEDURE cadastrarUsuario (
+    IN p_nome VARCHAR(100),
+    IN p_user VARCHAR(50),
+    IN p_role VARCHAR(50),
+    IN p_senha VARCHAR(100),
+    IN p_cpf VARCHAR(14),
+    IN p_data_nascimento DATE
+)
+BEGIN
+    INSERT INTO Usuario (nome, user, role, senha, cpf, data_nascimento)
+    VALUES (p_nome, p_user, p_role, p_senha, p_cpf, p_data_nascimento);
+END$$
+
+CREATE PROCEDURE atualizarProntuario (
+    IN p_paciente_id INT,
+    IN p_novo_historico TEXT
+)
+BEGIN
+    UPDATE Paciente
+    SET historico_clinico = p_novo_historico
+    WHERE usuario_id = p_paciente_id;
+END$$
+
+CREATE PROCEDURE agendarConsulta (
+    IN p_paciente_id INT,
+    IN p_profissional_id INT,
+    IN p_data DATETIME
+)
+BEGIN
+    INSERT INTO Consulta (paciente_id, profissional_id, data_consulta)
+    VALUES (p_paciente_id, p_profissional_id, p_data);
+END$$
+
+CREATE PROCEDURE cancelarConsulta (
+    IN p_consulta_id INT
+)
+BEGIN
+    UPDATE Consulta
+    SET status = 'Cancelada'
+    WHERE id = p_consulta_id;
+END$$
+
+CREATE PROCEDURE emitirReceita (
+    IN p_paciente_id INT,
+    IN p_profissional_id INT,
+    IN p_conteudo TEXT
+)
+BEGIN
+    INSERT INTO Receita (paciente_id, profissional_id, conteudo)
+    VALUES (p_paciente_id, p_profissional_id, p_conteudo);
+END$$
+
+CREATE PROCEDURE gerarRelatorio()
+BEGIN
+    SELECT u.id, u.nome, u.user, u.role, u.cpf,
+        CASE
+            WHEN p.usuario_id IS NOT NULL THEN 'Paciente'
+            WHEN ps.usuario_id IS NOT NULL THEN 'ProfissionalSaude'
+            WHEN a.usuario_id IS NOT NULL THEN 'Admin'
+            ELSE 'Desconhecido'
+        END AS tipo_usuario
+    FROM Usuario u
+    LEFT JOIN Paciente p ON u.id = p.usuario_id
+    LEFT JOIN ProfissionalSaude ps ON u.id = ps.usuario_id
+    LEFT JOIN Admin a ON u.id = a.usuario_id;
+END$$
+
+CREATE PROCEDURE gerenciarCadastros()
+BEGIN
+    SELECT * FROM Usuario;
+END$$
+
+CREATE PROCEDURE acessarTeleconsultaPaciente (
+    IN p_paciente_id INT
+)
+BEGIN
+    SELECT * FROM Teleconsulta
+    WHERE paciente_id = p_paciente_id
+    ORDER BY data_hora DESC;
+END$$
+
+CREATE PROCEDURE acessarTeleconsultaProfissional (
+    IN p_profissional_id INT
+)
+BEGIN
+    SELECT * FROM Teleconsulta
+    WHERE profissional_id = p_profissional_id
+    ORDER BY data_hora DESC;
+END$$
+
+DELIMITER ;
+
+-- Dados de exemplo
+INSERT INTO Usuario (nome, user, role, senha, cpf, data_nascimento)
+VALUES 
+('Maria Silva', 'maria', 'Paciente', '1234', '111.111.111-11', '1985-06-15'),
+('Dr. João Souza', 'joaos', 'Profissional', 'abcd', '222.222.222-22', '1975-09-22'),
+('Ana Admin', 'anaadmin', 'Admin', 'admin123', '333.333.333-33', '1990-01-01');
+
+INSERT INTO Paciente (usuario_id, historico_clinico) VALUES (1, 'Histórico limpo.');
+INSERT INTO ProfissionalSaude (usuario_id, especialidade, tipo) VALUES (2, 'Cardiologia', 'Médico');
+INSERT INTO Admin (usuario_id, admin_id) VALUES (3, 1);
+
+INSERT INTO Consulta (paciente_id, profissional_id, data_consulta)
+VALUES (1, 2, '2025-07-01 10:00:00');
+
+INSERT INTO Receita (paciente_id, profissional_id, conteudo)
+VALUES (1, 2, 'Paracetamol 500mg 3x ao dia');
+
+INSERT INTO Teleconsulta (paciente_id, profissional_id, data_hora, link_acesso)
+VALUES (1, 2, '2025-07-02 14:00:00', 'https://teleconsulta.com/maria-e-joao');
