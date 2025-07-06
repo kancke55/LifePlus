@@ -61,7 +61,7 @@ exports.create = async (req, res) => {
       status || 'Agendada'
     ]);
 
-    res.status(201).json({ message: 'Consulta criada com sucesso', id: result.insertId });
+    res.status(201).json({ message: 'Consulta agendada com sucesso', id: result.insertId });
   } catch (err) {
     res.status(500).json({ error: 'Erro ao criar consulta', detalhes: err.message });
   }
